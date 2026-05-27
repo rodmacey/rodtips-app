@@ -11,28 +11,53 @@ export default function AppShell({
 }) {
   const [displayName, setDisplayName] = useState('');
   const [lang, setLang] = useState<'en' | 'fr'>('en');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  async function loadProfile(userId: string) {
+    const { data } = await supabase
+      .from('profiles')
+      .select('display_name, preferred_lang')
+      .eq('id', userId)
+      .single();
+
+    if (data) {
+      setDisplayName(data.display_name);
+      setLang(data.preferred_lang || 'en');
+    }
+  }
 
   useEffect(() => {
-    async function loadProfile() {
+    async function init() {
       const {
         data: { user }
       } = await supabase.auth.getUser();
 
-      if (!user) return;
-
-      const { data } = await supabase
-        .from('profiles')
-        .select('display_name, preferred_lang')
-        .eq('id', user.id)
-        .single();
-
-      if (data) {
-        setDisplayName(data.display_name);
-        setLang(data.preferred_lang || 'en');
+      if (user) {
+        setIsAuthenticated(true);
+        await loadProfile(user.id);
       }
+
+      setLoading(false);
     }
 
-    loadProfile();
+    init();
+
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session?.user) {
+        setIsAuthenticated(true);
+        await loadProfile(session.user.id);
+      } else {
+        setIsAuthenticated(false);
+        setDisplayName('');
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   async function handleLogout() {
@@ -57,23 +82,56 @@ export default function AppShell({
     setLang(newLang);
   }
 
+  if (loading) {
+    return (
+      <div className="max-w-md mx-auto min-h-screen bg-bg" />
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="max-w-md mx-auto min-h-screen bg-bg">
+        {children}
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-md mx-auto min-h-screen bg-bg pb-24">
-<header className="sticky top-0 z-50 bg-bg border-b border-white/10 px-5 py-4 flex justify-between items-end">
+      <header className="sticky top-0 z-50 bg-bg border-b border-white/10 px-5 py-4 flex justify-between items-end">
         <div>
           <div className="text-2xl font-bold">RodTips</div>
 
-          <button
-            onClick={toggleLanguage}
-            className="text-sm text-textMuted"
-          >
-            {lang === 'en' ? 'EN | FR' : 'FR | EN'}
-          </button>
+          <div className="text-sm flex gap-1">
+  <button
+    onClick={() => lang !== 'en' && toggleLanguage()}
+    className={
+      lang === 'en'
+        ? 'text-white'
+        : 'text-textMuted'
+    }
+  >
+    EN
+  </button>
+
+  <span className="text-textMuted">|</span>
+
+  <button
+    onClick={() => lang !== 'fr' && toggleLanguage()}
+    className={
+      lang === 'fr'
+        ? 'text-white'
+        : 'text-textMuted'
+    }
+  >
+    FR
+  </button>
+</div>
         </div>
 
         <div className="text-right">
           <div className="text-sm">
-            {displayName || 'Guest'}
+            {displayName}
           </div>
 
           <button
