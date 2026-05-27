@@ -1,24 +1,21 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabase';
 
-export default function LoginPage() {
-  const router = useRouter();
-
+export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  async function handleLogin() {
+  async function handleResetRequest() {
     setLoading(true);
     setError('');
+    setMessage('');
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`
     });
 
     setLoading(false);
@@ -28,45 +25,35 @@ export default function LoginPage() {
       return;
     }
 
-    router.push('/dashboard');
+    setMessage('Password reset email sent.');
   }
 
   return (
     <main className="p-6">
-      <h1 className="text-4xl mb-8">Login</h1>
+      <h1 className="text-4xl mb-8">Reset Password</h1>
 
       <div className="space-y-4">
         <input
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          type="email"
           className="w-full bg-panel p-4 rounded-lg border border-white/10"
           placeholder="Email"
         />
 
-        <input
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          type="password"
-          className="w-full bg-panel p-4 rounded-lg border border-white/10"
-          placeholder="Password"
-        />
-
         <button
-          onClick={handleLogin}
+          onClick={handleResetRequest}
           disabled={loading}
           className="w-full bg-accent p-4 rounded-lg font-semibold"
         >
-          {loading ? 'Logging in...' : 'Login'}
+          {loading ? 'Sending...' : 'Send Reset Email'}
         </button>
 
-        <div className="text-right">
-  <a
-    href="/forgot-password"
-    className="text-sm text-textMuted"
-  >
-    Forgot password?
-  </a>
-</div>
+        {message && (
+          <div className="text-green-400 text-sm">
+            {message}
+          </div>
+        )}
 
         {error && (
           <div className="text-red-400 text-sm">
