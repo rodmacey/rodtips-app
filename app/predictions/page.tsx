@@ -8,8 +8,6 @@ type Round = {
   name_en: string;
   name_fr: string;
   lock_time: string;
-  is_complete: boolean;
-  display_order: number;
 };
 
 type Match = {
@@ -18,11 +16,11 @@ type Match = {
   home_label_fr: string;
   away_label_en: string;
   away_label_fr: string;
-  kickoff_time_utc: string;
   home_score: number | null;
   away_score: number | null;
   is_complete: boolean;
   match_order: number;
+  group_code: string | null;
 };
 
 type Prediction = {
@@ -34,28 +32,29 @@ type Prediction = {
 
 export default function PredictionsPage() {
   const [lang, setLang] = useState<'en' | 'fr'>('en');
-  const [userId, setUserId] = useState<string>('');
+  const [userId, setUserId] = useState('');
   const [rounds, setRounds] = useState<Round[]>([]);
   const [selectedRoundId, setSelectedRoundId] = useState('');
   const [matches, setMatches] = useState<Match[]>([]);
   const [predictions, setPredictions] = useState<Record<string, Prediction>>({});
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   async function loadPredictions(roundId: string, currentUserId: string) {
     const { data: matchesData } = await supabase
       .from('matches')
       .select('*')
       .eq('round_id', roundId)
-      .order('match_order', { ascending: true });
+      .order('match_order');
 
     setMatches(matchesData || []);
 
-    if (!matchesData?.length) {
+    const matchIds = matchesData?.map((m) => m.id) || [];
+
+    if (!matchIds.length) {
       setPredictions({});
       return;
     }
-
-    const matchIds = matchesData.map((m) => m.id);
 
     const { data: predictionData } = await supabase
       .from('predictions')
@@ -102,14 +101,13 @@ export default function PredictionsPage() {
         .from('rounds')
         .select('*')
         .eq('tournament_id', tournament.id)
-        .order('display_order', { ascending: true });
+        .order('display_order');
 
       if (!roundsData?.length) return;
 
       setRounds(roundsData);
 
       const now = new Date().toISOString();
-
       const currentRound =
         roundsData.find((r) => r.lock_time >= now) || roundsData[0];
 
@@ -121,9 +119,37 @@ export default function PredictionsPage() {
     init();
   }, []);
 
-  async function handleRoundChange(roundId: string) {
-    setSelectedRoundId(roundId);
-    await loadPredictions(roundId, userId);
+  async function savePredictions() {
+    setSaving(true);
+    setSaved(false);
+
+    const payload = Object.values(predictions)
+      .filter(
+        (p) =>
+          p.predicted_home !== null &&
+          p.predicted_away !== null
+      )
+      .map((p) => ({
+        user_id: userId,
+        match_id: p.match_id,
+        predicted_home: p.predicted_home,
+        predicted_away: p.predicted_away
+      }));
+
+    if (payload.length) {
+      await supabase
+        .from('predictions')
+        .upsert(payload, {
+          onConflict: 'user_id,match_id'
+        });
+    }
+
+    setSaving(false);
+    setSaved(true);
+
+    setTimeout(() => {
+      setSaved(false);
+    }, 2000);
   }
 
   function updatePrediction(
@@ -148,50 +174,12 @@ export default function PredictionsPage() {
     }));
   }
 
-  async function savePredictions() {
-    setSaving(true);
-
-    const selectedRound = rounds.find((r) => r.id === selectedRoundId);
-
-    if (!selectedRound) {
-      setSaving(false);
-      return;
-    }
-
-    const locked = new Date() > new Date(selectedRound.lock_time);
-
-    if (locked) {
-      setSaving(false);
-      return;
-    }
-
-    const payload = Object.values(predictions).filter(
-      (p) =>
-        p.predicted_home !== null &&
-        p.predicted_away !== null
-    ).map((p) => ({
-      user_id: userId,
-      match_id: p.match_id,
-      predicted_home: p.predicted_home,
-      predicted_away: p.predicted_away
-    }));
-
-    if (payload.length) {
-      await supabase
-        .from('predictions')
-        .upsert(payload, {
-          onConflict: 'user_id,match_id'
-        });
-    }
-
-    setSaving(false);
-  }
-
-  const selectedRound = rounds.find((r) => r.id === selectedRoundId);
-
-  const isLocked = selectedRound
-    ? new Date() > new Date(selectedRound.lock_time)
-    : false;
+  const grouped = matches.reduce((acc, match) => {
+    const key = match.group_code || 'knockout';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(match);
+    return acc;
+  }, {} as Record<string, Match[]>);
 
   return (
     <main className="p-6 space-y-5">
@@ -201,8 +189,11 @@ export default function PredictionsPage() {
 
       <select
         value={selectedRoundId}
-        onChange={(e) => handleRoundChange(e.target.value)}
-        className="w-full bg-panel border border-white/10 rounded-lg p-4"
+        onChange={async (e) => {
+          setSelectedRoundId(e.target.value);
+          await loadPredictions(e.target.value, userId);
+        }}
+        className="w-full bg-panel p-4 rounded-lg"
       >
         {rounds.map((round) => (
           <option key={round.id} value={round.id}>
@@ -211,87 +202,86 @@ export default function PredictionsPage() {
         ))}
       </select>
 
-      <div className="space-y-4">
-        {matches.map((match) => {
-          const prediction = predictions[match.id];
+      {Object.entries(grouped).map(([group, groupMatches]) => (
+        <div key={group} className="space-y-3">
+          {group !== 'knockout' && (
+            <h2 className="text-xl font-semibold">
+              {lang === 'fr' ? 'Groupe' : 'Group'} {group}
+            </h2>
+          )}
 
-          return (
-            <div
-              key={match.id}
-              className="bg-panel rounded-xl p-4 border border-white/10"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex-1 text-right">
-                  {lang === 'fr'
-                    ? match.home_label_fr
-                    : match.home_label_en}
-                </div>
+          {groupMatches.map((match) => {
+            const prediction = predictions[match.id];
 
-                <input
-                  type="number"
-                  min="0"
-                  disabled={isLocked}
-                  value={prediction?.predicted_home ?? ''}
-                  onChange={(e) =>
-                    updatePrediction(
-                      match.id,
-                      'predicted_home',
-                      e.target.value
-                    )
-                  }
-                  className="w-14 text-center bg-bg rounded p-2"
-                />
+            return (
+              <div
+                key={match.id}
+                className="bg-panel rounded-xl p-4 border border-white/10"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex-1 text-right">
+                    {lang === 'fr'
+                      ? match.home_label_fr
+                      : match.home_label_en}
+                  </div>
 
-                <span>-</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={prediction?.predicted_home ?? ''}
+                    onChange={(e) =>
+                      updatePrediction(
+                        match.id,
+                        'predicted_home',
+                        e.target.value
+                      )
+                    }
+                    className="w-14 text-center bg-bg rounded p-2"
+                  />
 
-                <input
-                  type="number"
-                  min="0"
-                  disabled={isLocked}
-                  value={prediction?.predicted_away ?? ''}
-                  onChange={(e) =>
-                    updatePrediction(
-                      match.id,
-                      'predicted_away',
-                      e.target.value
-                    )
-                  }
-                  className="w-14 text-center bg-bg rounded p-2"
-                />
+                  <span>-</span>
 
-                <div className="flex-1">
-                  {lang === 'fr'
-                    ? match.away_label_fr
-                    : match.away_label_en}
+                  <input
+                    type="number"
+                    min="0"
+                    value={prediction?.predicted_away ?? ''}
+                    onChange={(e) =>
+                      updatePrediction(
+                        match.id,
+                        'predicted_away',
+                        e.target.value
+                      )
+                    }
+                    className="w-14 text-center bg-bg rounded p-2"
+                  />
+
+                  <div className="flex-1">
+                    {lang === 'fr'
+                      ? match.away_label_fr
+                      : match.away_label_en}
+                  </div>
                 </div>
               </div>
+            );
+          })}
+        </div>
+      ))}
 
-              {match.is_complete && (
-                <div className="mt-3 text-sm text-textMuted">
-                  {lang === 'fr' ? 'Résultat' : 'Result'}:{' '}
-                  {match.home_score}–{match.away_score}
-                  {' • '}
-                  {lang === 'fr' ? 'Points' : 'Points'}:{' '}
-                  {prediction?.points_awarded ?? 0}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      <button
+        onClick={savePredictions}
+        className="w-full bg-accent p-4 rounded-lg font-semibold"
+      >
+        {saving
+          ? (lang === 'fr' ? 'Sauvegarde...' : 'Saving...')
+          : (lang === 'fr'
+              ? 'Sauvegarder les pronostics'
+              : 'Save Predictions')}
+      </button>
 
-      {!isLocked && (
-        <button
-          onClick={savePredictions}
-          disabled={saving}
-          className="w-full bg-accent p-4 rounded-lg font-semibold"
-        >
-          {saving
-            ? (lang === 'fr' ? 'Sauvegarde...' : 'Saving...')
-            : (lang === 'fr'
-                ? 'Sauvegarder les pronostics'
-                : 'Save Predictions')}
-        </button>
+      {saved && (
+        <div className="text-green-400 text-center">
+          {lang === 'fr' ? '✓ Sauvegardé' : '✓ Saved'}
+        </div>
       )}
     </main>
   );

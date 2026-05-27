@@ -138,14 +138,14 @@ export default function AppShell({
             onClick={handleLogout}
             className="text-sm text-textMuted"
           >
-            Logout
+            {lang === 'fr' ? 'Déconnexion' : 'Logout'}
           </button>
         </div>
       </header>
 
       {children}
 
-      <BottomNav />
-    </div>
+      <BottomNav lang={lang} />
+          </div>
   );
 }

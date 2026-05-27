@@ -1,35 +1,31 @@
 'use client';
 
+type BottomNavProps = {
+  lang: 'en' | 'fr';
+};
+
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 
-const navItems = [
-  { label: 'Home', href: '/dashboard' },
-  { label: 'Predictions', href: '/predictions' },
-  { label: 'Leaderboard', href: '/leaderboard' },
-  { label: 'Rules', href: '/rules' }
-];
-
-export default function BottomNav() {
-  const pathname = usePathname();
-
+export default function BottomNav({
+  lang
+}: BottomNavProps) {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-panel border-t border-white/10 px-2 py-3 flex justify-around">
-      {navItems.map((item) => {
-        const active = pathname === item.href;
+    <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-panel border-t border-white/10 flex justify-around p-4">
+      <Link href="/dashboard">
+        {lang === 'fr' ? 'Tableau' : 'Dashboard'}
+      </Link>
 
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`text-sm ${
-              active ? 'text-accent font-semibold' : 'text-textMuted'
-            }`}
-          >
-            {item.label}
-          </Link>
-        );
-      })}
+      <Link href="/predictions">
+        {lang === 'fr' ? 'Pronostics' : 'Predictions'}
+      </Link>
+
+      <Link href="/leaderboard">
+        {lang === 'fr' ? 'Classement' : 'Leaderboard'}
+      </Link>
+
+      <Link href="/links">
+        {lang === 'fr' ? 'Liens' : 'Links'}
+      </Link>
     </nav>
   );
 }
