@@ -1,23 +1,28 @@
-import Link from 'next/link';
+'use client';
 
-export default function Home() {
+import Link from 'next/link';
+import { useLanguage } from '../context/LanguageContext';
+
+export default function HomePage() {
+  const { lang } = useLanguage();
+
   return (
     <main className="p-6">
-      <h1 className="text-4xl mb-8">RodTips</h1>
-
-      <div className="space-y-4">
+      <div className="space-y-4 mt-12">
         <Link
           href="/login"
-          className="block w-full bg-accent p-4 rounded-lg text-center font-semibold"
+          className="block w-full bg-accent p-4 rounded-lg font-semibold text-center"
         >
-          Login
+          {lang === 'fr' ? 'Connexion' : 'Login'}
         </Link>
 
         <Link
           href="/signup"
-          className="block w-full bg-panel p-4 rounded-lg text-center border border-white/10"
+          className="block w-full bg-panel p-4 rounded-lg border border-white/10 text-center"
         >
-          Create Account
+          {lang === 'fr'
+            ? 'Créer un compte'
+            : 'Create Account'}
         </Link>
       </div>
     </main>

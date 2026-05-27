@@ -1,14 +1,11 @@
 'use client';
 
-type BottomNavProps = {
-  lang: 'en' | 'fr';
-};
-
 import Link from 'next/link';
+import { useLanguage } from '../context/LanguageContext';
 
-export default function BottomNav({
-  lang
-}: BottomNavProps) {
+export default function BottomNav() {
+  const { lang } = useLanguage();
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-panel border-t border-white/10 flex justify-around p-4">
       <Link href="/dashboard">

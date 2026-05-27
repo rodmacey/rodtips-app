@@ -3,27 +3,31 @@
 import { useEffect, useState } from 'react';
 import BottomNav from './BottomNav';
 import { supabase } from '../lib/supabase';
+import {
+  LanguageProvider,
+  useLanguage
+} from '../context/LanguageContext';
 
-export default function AppShell({
+function ShellContent({
   children
 }: {
   children: React.ReactNode;
 }) {
+  const { lang, setLanguage } = useLanguage();
+
   const [displayName, setDisplayName] = useState('');
-  const [lang, setLang] = useState<'en' | 'fr'>('en');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
 
   async function loadProfile(userId: string) {
     const { data } = await supabase
       .from('profiles')
-      .select('display_name, preferred_lang')
+      .select('display_name')
       .eq('id', userId)
       .single();
 
     if (data) {
       setDisplayName(data.display_name);
-      setLang(data.preferred_lang || 'en');
     }
   }
 
@@ -65,23 +69,6 @@ export default function AppShell({
     window.location.href = '/';
   }
 
-  async function toggleLanguage() {
-    const {
-      data: { user }
-    } = await supabase.auth.getUser();
-
-    if (!user) return;
-
-    const newLang = lang === 'en' ? 'fr' : 'en';
-
-    await supabase
-      .from('profiles')
-      .update({ preferred_lang: newLang })
-      .eq('id', user.id);
-
-    setLang(newLang);
-  }
-
   if (loading) {
     return (
       <div className="max-w-md mx-auto min-h-screen bg-bg" />
@@ -103,30 +90,34 @@ export default function AppShell({
           <div className="text-2xl font-bold">RodTips</div>
 
           <div className="text-sm flex gap-1">
-  <button
-    onClick={() => lang !== 'en' && toggleLanguage()}
-    className={
-      lang === 'en'
-        ? 'text-white'
-        : 'text-textMuted'
-    }
-  >
-    EN
-  </button>
+            <button
+              onClick={() =>
+                lang !== 'en' && setLanguage('en')
+              }
+              className={
+                lang === 'en'
+                  ? 'text-white'
+                  : 'text-textMuted'
+              }
+            >
+              EN
+            </button>
 
-  <span className="text-textMuted">|</span>
+            <span className="text-textMuted">|</span>
 
-  <button
-    onClick={() => lang !== 'fr' && toggleLanguage()}
-    className={
-      lang === 'fr'
-        ? 'text-white'
-        : 'text-textMuted'
-    }
-  >
-    FR
-  </button>
-</div>
+            <button
+              onClick={() =>
+                lang !== 'fr' && setLanguage('fr')
+              }
+              className={
+                lang === 'fr'
+                  ? 'text-white'
+                  : 'text-textMuted'
+              }
+            >
+              FR
+            </button>
+          </div>
         </div>
 
         <div className="text-right">
@@ -138,14 +129,30 @@ export default function AppShell({
             onClick={handleLogout}
             className="text-sm text-textMuted"
           >
-            {lang === 'fr' ? 'Déconnexion' : 'Logout'}
+            {lang === 'fr'
+              ? 'Déconnexion'
+              : 'Logout'}
           </button>
         </div>
       </header>
 
       {children}
 
-      <BottomNav lang={lang} />
-          </div>
+      <BottomNav />
+    </div>
+  );
+}
+
+export default function AppShell({
+  children
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <LanguageProvider>
+      <ShellContent>
+        {children}
+      </ShellContent>
+    </LanguageProvider>
   );
 }

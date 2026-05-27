@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { useLanguage } from '../../context/LanguageContext';
 
 type Round = {
   id: string;
   name_en: string;
   name_fr: string;
   lock_time: string;
+  display_order: number;
 };
 
 type Match = {
@@ -31,7 +33,8 @@ type Prediction = {
 };
 
 export default function PredictionsPage() {
-  const [lang, setLang] = useState<'en' | 'fr'>('en');
+  const { lang } = useLanguage();
+
   const [userId, setUserId] = useState('');
   const [rounds, setRounds] = useState<Round[]>([]);
   const [selectedRoundId, setSelectedRoundId] = useState('');
@@ -40,7 +43,7 @@ export default function PredictionsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  async function loadPredictions(roundId: string, currentUserId: string) {
+  async function loadRound(roundId: string, currentUserId: string) {
     const { data: matchesData } = await supabase
       .from('matches')
       .select('*')
@@ -81,14 +84,6 @@ export default function PredictionsPage() {
 
       setUserId(user.id);
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('preferred_lang')
-        .eq('id', user.id)
-        .single();
-
-      setLang((profile?.preferred_lang || 'en') as 'en' | 'fr');
-
       const { data: tournament } = await supabase
         .from('tournaments')
         .select('id')
@@ -108,16 +103,45 @@ export default function PredictionsPage() {
       setRounds(roundsData);
 
       const now = new Date().toISOString();
+
       const currentRound =
-        roundsData.find((r) => r.lock_time >= now) || roundsData[0];
+        roundsData.find((r) => r.lock_time >= now) ||
+        roundsData[0];
 
       setSelectedRoundId(currentRound.id);
 
-      await loadPredictions(currentRound.id, user.id);
+      await loadRound(currentRound.id, user.id);
     }
 
     init();
   }, []);
+
+  function updatePrediction(
+    matchId: string,
+    field: 'predicted_home' | 'predicted_away',
+    value: string
+  ) {
+    setPredictions((prev) => ({
+      ...prev,
+      [matchId]: {
+        match_id: matchId,
+        predicted_home:
+          field === 'predicted_home'
+            ? value === ''
+              ? null
+              : Number(value)
+            : prev[matchId]?.predicted_home ?? null,
+        predicted_away:
+          field === 'predicted_away'
+            ? value === ''
+              ? null
+              : Number(value)
+            : prev[matchId]?.predicted_away ?? null,
+        points_awarded:
+          prev[matchId]?.points_awarded ?? 0
+      }
+    }));
+  }
 
   async function savePredictions() {
     setSaving(true);
@@ -152,52 +176,47 @@ export default function PredictionsPage() {
     }, 2000);
   }
 
-  function updatePrediction(
-    matchId: string,
-    field: 'predicted_home' | 'predicted_away',
-    value: string
-  ) {
-    setPredictions((prev) => ({
-      ...prev,
-      [matchId]: {
-        match_id: matchId,
-        predicted_home:
-          field === 'predicted_home'
-            ? value === '' ? null : Number(value)
-            : prev[matchId]?.predicted_home ?? null,
-        predicted_away:
-          field === 'predicted_away'
-            ? value === '' ? null : Number(value)
-            : prev[matchId]?.predicted_away ?? null,
-        points_awarded: prev[matchId]?.points_awarded ?? 0
-      }
-    }));
-  }
+  const selectedRound = rounds.find(
+    (r) => r.id === selectedRoundId
+  );
+
+  const isLocked = selectedRound
+    ? new Date() > new Date(selectedRound.lock_time)
+    : false;
 
   const grouped = matches.reduce((acc, match) => {
     const key = match.group_code || 'knockout';
-    if (!acc[key]) acc[key] = [];
+
+    if (!acc[key]) {
+      acc[key] = [];
+    }
+
     acc[key].push(match);
+
     return acc;
   }, {} as Record<string, Match[]>);
 
   return (
     <main className="p-6 space-y-5">
       <h1 className="text-4xl">
-        {lang === 'fr' ? 'Pronostics' : 'Predictions'}
+        {lang === 'fr'
+          ? 'Pronostics'
+          : 'Predictions'}
       </h1>
 
       <select
         value={selectedRoundId}
         onChange={async (e) => {
           setSelectedRoundId(e.target.value);
-          await loadPredictions(e.target.value, userId);
+          await loadRound(e.target.value, userId);
         }}
         className="w-full bg-panel p-4 rounded-lg"
       >
         {rounds.map((round) => (
           <option key={round.id} value={round.id}>
-            {lang === 'fr' ? round.name_fr : round.name_en}
+            {lang === 'fr'
+              ? round.name_fr
+              : round.name_en}
           </option>
         ))}
       </select>
@@ -206,7 +225,10 @@ export default function PredictionsPage() {
         <div key={group} className="space-y-3">
           {group !== 'knockout' && (
             <h2 className="text-xl font-semibold">
-              {lang === 'fr' ? 'Groupe' : 'Group'} {group}
+              {lang === 'fr'
+                ? 'Groupe'
+                : 'Group'}{' '}
+              {group}
             </h2>
           )}
 
@@ -228,6 +250,7 @@ export default function PredictionsPage() {
                   <input
                     type="number"
                     min="0"
+                    disabled={isLocked}
                     value={prediction?.predicted_home ?? ''}
                     onChange={(e) =>
                       updatePrediction(
@@ -244,6 +267,7 @@ export default function PredictionsPage() {
                   <input
                     type="number"
                     min="0"
+                    disabled={isLocked}
                     value={prediction?.predicted_away ?? ''}
                     onChange={(e) =>
                       updatePrediction(
@@ -261,27 +285,50 @@ export default function PredictionsPage() {
                       : match.away_label_en}
                   </div>
                 </div>
+
+                {match.is_complete && (
+                  <div className="mt-3 text-sm text-textMuted">
+                    {lang === 'fr'
+                      ? 'Résultat'
+                      : 'Result'}:{' '}
+                    {match.home_score}–{match.away_score}
+                    {' • '}
+                    {lang === 'fr'
+                      ? 'Points'
+                      : 'Points'}:{' '}
+                    {prediction?.points_awarded ?? 0}
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
       ))}
 
-      <button
-        onClick={savePredictions}
-        className="w-full bg-accent p-4 rounded-lg font-semibold"
-      >
-        {saving
-          ? (lang === 'fr' ? 'Sauvegarde...' : 'Saving...')
-          : (lang === 'fr'
+      {!isLocked && (
+        <>
+          <button
+            onClick={savePredictions}
+            disabled={saving}
+            className="w-full bg-accent p-4 rounded-lg font-semibold"
+          >
+            {saving
+              ? lang === 'fr'
+                ? 'Sauvegarde...'
+                : 'Saving...'
+              : lang === 'fr'
               ? 'Sauvegarder les pronostics'
-              : 'Save Predictions')}
-      </button>
+              : 'Save Predictions'}
+          </button>
 
-      {saved && (
-        <div className="text-green-400 text-center">
-          {lang === 'fr' ? '✓ Sauvegardé' : '✓ Saved'}
-        </div>
+          {saved && (
+            <div className="text-green-400 text-center">
+              {lang === 'fr'
+                ? '✓ Sauvegardé'
+                : '✓ Saved'}
+            </div>
+          )}
+        </>
       )}
     </main>
   );

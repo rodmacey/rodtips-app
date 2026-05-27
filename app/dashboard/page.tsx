@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { useLanguage } from '../../context/LanguageContext';
 
 type Tournament = {
   id: string;
@@ -17,7 +18,8 @@ type Round = {
 };
 
 export default function DashboardPage() {
-  const [lang, setLang] = useState<'en' | 'fr'>('en');
+  const { lang } = useLanguage();
+
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [currentRound, setCurrentRound] = useState<Round | null>(null);
   const [predictionCount, setPredictionCount] = useState(0);
@@ -31,15 +33,6 @@ export default function DashboardPage() {
       } = await supabase.auth.getUser();
 
       if (!user) return;
-
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('preferred_lang')
-        .eq('id', user.id)
-        .single();
-
-      const userLang = (profile?.preferred_lang || 'en') as 'en' | 'fr';
-      setLang(userLang);
 
       const { data: tournamentData } = await supabase
         .from('tournaments')
@@ -66,28 +59,30 @@ export default function DashboardPage() {
 
       setCurrentRound(roundData);
 
-      const { count: totalMatches } = await supabase
+      const { data: matchRows } = await supabase
         .from('matches')
-        .select('*', { count: 'exact', head: true })
+        .select('id')
         .eq('round_id', roundData.id);
 
-      setMatchCount(totalMatches || 0);
+      const matchIds = matchRows?.map((m) => m.id) || [];
 
-      const { count: totalPredictions } = await supabase
+      setMatchCount(matchIds.length);
+
+      if (!matchIds.length) {
+        setPredictionCount(0);
+        return;
+      }
+
+      const { count } = await supabase
         .from('predictions')
-        .select('*', { count: 'exact', head: true })
+        .select('*', {
+          count: 'exact',
+          head: true
+        })
         .eq('user_id', user.id)
-        .in(
-          'match_id',
-          (
-            await supabase
-              .from('matches')
-              .select('id')
-              .eq('round_id', roundData.id)
-          ).data?.map((m) => m.id) || []
-        );
+        .in('match_id', matchIds);
 
-      setPredictionCount(totalPredictions || 0);
+      setPredictionCount(count || 0);
     }
 
     loadDashboard();
@@ -106,10 +101,17 @@ export default function DashboardPage() {
         return;
       }
 
-      const hours = Math.floor(diff / 1000 / 60 / 60);
+      const days = Math.floor(diff / 1000 / 60 / 60 / 24);
+      const hours = Math.floor((diff / 1000 / 60 / 60) % 24);
       const minutes = Math.floor((diff / 1000 / 60) % 60);
 
-      setCountdown(`${hours}h ${minutes}m`);
+      if (days > 0) {
+        setCountdown(
+          `${days}d ${hours}h ${minutes}m`
+        );
+      } else {
+        setCountdown(`${hours}h ${minutes}m`);
+      }
     }
 
     updateCountdown();
@@ -122,7 +124,9 @@ export default function DashboardPage() {
   return (
     <main className="p-6 space-y-5">
       <h1 className="text-4xl">
-        {lang === 'fr' ? 'Tableau de bord' : 'Dashboard'}
+        {lang === 'fr'
+          ? 'Tableau de bord'
+          : 'Dashboard'}
       </h1>
 
       <div className="bg-panel rounded-xl p-5 border border-white/10">
@@ -141,7 +145,9 @@ export default function DashboardPage() {
 
       <div className="bg-panel rounded-xl p-5 border border-white/10">
         <div className="text-textMuted text-sm">
-          {lang === 'fr' ? 'Tour actuel' : 'Current Round'}
+          {lang === 'fr'
+            ? 'Tour actuel'
+            : 'Current Round'}
         </div>
 
         <div className="text-2xl mt-2">
