@@ -20,10 +20,21 @@ type Round = {
 export default function DashboardPage() {
   const { lang } = useLanguage();
 
-  const [tournament, setTournament] = useState<Tournament | null>(null);
-  const [currentRound, setCurrentRound] = useState<Round | null>(null);
+  const [tournament, setTournament] =
+    useState<Tournament | null>(null);
+
+  const [currentRound, setCurrentRound] =
+    useState<Round | null>(null);
+
   const [predictionCount, setPredictionCount] = useState(0);
   const [matchCount, setMatchCount] = useState(0);
+
+  const [score, setScore] = useState(0);
+  const [maxScore, setMaxScore] = useState(0);
+
+  const [rank, setRank] = useState<number | null>(null);
+  const [participantCount, setParticipantCount] = useState(0);
+
   const [countdown, setCountdown] = useState('');
 
   useEffect(() => {
@@ -33,6 +44,8 @@ export default function DashboardPage() {
       } = await supabase.auth.getUser();
 
       if (!user) return;
+
+      // ACTIVE TOURNAMENT
 
       const { data: tournamentData } = await supabase
         .from('tournaments')
@@ -44,6 +57,8 @@ export default function DashboardPage() {
 
       setTournament(tournamentData);
 
+      // CURRENT ROUND
+
       const now = new Date().toISOString();
 
       const { data: roundData } = await supabase
@@ -51,38 +66,102 @@ export default function DashboardPage() {
         .select('*')
         .eq('tournament_id', tournamentData.id)
         .gte('lock_time', now)
-        .order('display_order', { ascending: true })
+        .order('display_order')
         .limit(1)
         .single();
 
-      if (!roundData) return;
+      if (roundData) {
+        setCurrentRound(roundData);
 
-      setCurrentRound(roundData);
+        const { data: matchRows } = await supabase
+          .from('matches')
+          .select('id')
+          .eq('round_id', roundData.id);
 
-      const { data: matchRows } = await supabase
-        .from('matches')
-        .select('id')
-        .eq('round_id', roundData.id);
+        const matchIds =
+          matchRows?.map((m) => m.id) || [];
 
-      const matchIds = matchRows?.map((m) => m.id) || [];
+        setMatchCount(matchIds.length);
 
-      setMatchCount(matchIds.length);
+        if (matchIds.length) {
+          const { count } = await supabase
+            .from('predictions')
+            .select('*', {
+              count: 'exact',
+              head: true
+            })
+            .eq('user_id', user.id)
+            .in('match_id', matchIds);
 
-      if (!matchIds.length) {
-        setPredictionCount(0);
-        return;
+          setPredictionCount(count || 0);
+        }
       }
 
-      const { count } = await supabase
+      // USER SCORE
+
+      const { data: userPredictions } = await supabase
         .from('predictions')
+        .select('points_awarded')
+        .eq('user_id', user.id);
+
+      const totalScore =
+        userPredictions?.reduce(
+          (sum, p) => sum + (p.points_awarded || 0),
+          0
+        ) || 0;
+
+      setScore(totalScore);
+
+      // MAX POSSIBLE SCORE
+
+      const { count: completedMatches } = await supabase
+        .from('matches')
         .select('*', {
           count: 'exact',
           head: true
         })
-        .eq('user_id', user.id)
-        .in('match_id', matchIds);
+        .eq('is_complete', true);
 
-      setPredictionCount(count || 0);
+      setMaxScore((completedMatches || 0) * 4);
+
+      // LEADERBOARD
+
+      const { data: allPredictions } = await supabase
+        .from('predictions')
+        .select('user_id, points_awarded');
+
+      const totals: Record<string, number> = {};
+
+      allPredictions?.forEach((p) => {
+        totals[p.user_id] =
+          (totals[p.user_id] || 0) +
+          (p.points_awarded || 0);
+      });
+
+      const leaderboard = Object.entries(totals)
+        .map(([userId, points]) => ({
+          userId,
+          points
+        }))
+        .sort((a, b) => b.points - a.points);
+
+      setParticipantCount(leaderboard.length);
+
+      let currentRank = 1;
+
+      leaderboard.forEach((entry, index) => {
+        if (
+          index > 0 &&
+          entry.points <
+            leaderboard[index - 1].points
+        ) {
+          currentRank = index + 1;
+        }
+
+        if (entry.userId === user.id) {
+          setRank(currentRank);
+        }
+      });
     }
 
     loadDashboard();
@@ -93,17 +172,34 @@ export default function DashboardPage() {
 
     function updateCountdown() {
       const now = new Date().getTime();
-      const lock = new Date(currentRound.lock_time).getTime();
+
+      const lock = new Date(
+        currentRound.lock_time
+      ).getTime();
+
       const diff = lock - now;
 
       if (diff <= 0) {
-        setCountdown(lang === 'fr' ? 'Verrouillé' : 'Locked');
+        setCountdown(
+          lang === 'fr'
+            ? 'Verrouillé'
+            : 'Locked'
+        );
+
         return;
       }
 
-      const days = Math.floor(diff / 1000 / 60 / 60 / 24);
-      const hours = Math.floor((diff / 1000 / 60 / 60) % 24);
-      const minutes = Math.floor((diff / 1000 / 60) % 60);
+      const days = Math.floor(
+        diff / 1000 / 60 / 60 / 24
+      );
+
+      const hours = Math.floor(
+        (diff / 1000 / 60 / 60) % 24
+      );
+
+      const minutes = Math.floor(
+        (diff / 1000 / 60) % 60
+      );
 
       if (days > 0) {
         setCountdown(
@@ -116,7 +212,10 @@ export default function DashboardPage() {
 
     updateCountdown();
 
-    const timer = setInterval(updateCountdown, 60000);
+    const timer = setInterval(
+      updateCountdown,
+      60000
+    );
 
     return () => clearInterval(timer);
   }, [currentRound, lang]);
@@ -131,7 +230,9 @@ export default function DashboardPage() {
 
       <div className="bg-panel rounded-xl p-5 border border-white/10">
         <div className="text-textMuted text-sm">
-          {lang === 'fr' ? 'Tournoi' : 'Tournament'}
+          {lang === 'fr'
+            ? 'Tournoi'
+            : 'Tournament'}
         </div>
 
         <div className="text-2xl mt-2">
@@ -172,6 +273,28 @@ export default function DashboardPage() {
 
         <div className="text-2xl mt-2">
           {predictionCount} / {matchCount}
+        </div>
+      </div>
+
+      <div className="bg-panel rounded-xl p-5 border border-white/10">
+        <div className="text-textMuted text-sm">
+          Score
+        </div>
+
+        <div className="text-2xl mt-2">
+          {score} / {maxScore}
+        </div>
+      </div>
+
+      <div className="bg-panel rounded-xl p-5 border border-white/10">
+        <div className="text-textMuted text-sm">
+          {lang === 'fr'
+            ? 'Classement'
+            : 'Rank'}
+        </div>
+
+        <div className="text-2xl mt-2">
+          {rank || '—'} / {participantCount}
         </div>
       </div>
     </main>
