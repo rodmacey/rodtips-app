@@ -8,6 +8,8 @@ type LeaderboardEntry = {
   userId: string;
   displayName: string;
   points: number;
+  perfectScores: number;
+  correctResults: number;
   rank: number;
 };
 
@@ -19,33 +21,61 @@ export default function LeaderboardPage() {
   >([]);
 
   const [currentUserId, setCurrentUserId] =
-  useState('');
+    useState('');
 
   useEffect(() => {
     async function loadLeaderboard() {
-      const { data: predictions } = await supabase
-        .from('predictions')
-        .select('user_id, points_awarded');
-
-      if (!predictions) return;
-
       const {
         data: { user }
       } = await supabase.auth.getUser();
-      
+
       if (user) {
         setCurrentUserId(user.id);
       }
 
-      const totals: Record<string, number> = {};
+      const { data: predictions } = await supabase
+        .from('predictions')
+        .select(
+          'user_id, points_awarded, is_exact, is_correct_result'
+        );
 
-      predictions.forEach((p) => {
-        totals[p.user_id] =
-          (totals[p.user_id] || 0) +
-          (p.points_awarded || 0);
+      if (!predictions) {
+        setEntries([]);
+        return;
+      }
+
+      const totals: Record<
+        string,
+        {
+          points: number;
+          ps: number;
+          cr: number;
+        }
+      > = {};
+
+      predictions.forEach((prediction) => {
+        if (!totals[prediction.user_id]) {
+          totals[prediction.user_id] = {
+            points: 0,
+            ps: 0,
+            cr: 0
+          };
+        }
+
+        totals[prediction.user_id].points +=
+          prediction.points_awarded || 0;
+
+        if (prediction.is_exact) {
+          totals[prediction.user_id].ps += 1;
+        }
+
+        if (prediction.is_correct_result) {
+          totals[prediction.user_id].cr += 1;
+        }
       });
 
-      const activeUserIds = Object.keys(totals);
+      const activeUserIds =
+        Object.keys(totals);
 
       if (!activeUserIds.length) {
         setEntries([]);
@@ -62,28 +92,62 @@ export default function LeaderboardPage() {
           userId,
           displayName:
             profiles?.find(
-              (p) => p.id === userId
+              (profile) =>
+                profile.id === userId
             )?.display_name || 'Unknown',
-          points: totals[userId]
+          points: totals[userId].points,
+          perfectScores:
+            totals[userId].ps,
+          correctResults:
+            totals[userId].cr
         }))
-        .sort((a, b) => b.points - a.points);
+        .sort((a, b) => {
+          if (b.points !== a.points) {
+            return b.points - a.points;
+          }
+
+          if (
+            b.perfectScores !==
+            a.perfectScores
+          ) {
+            return (
+              b.perfectScores -
+              a.perfectScores
+            );
+          }
+
+          return (
+            b.correctResults -
+            a.correctResults
+          );
+        });
 
       let currentRank = 1;
 
-      const ranked = sorted.map((entry, index) => {
-        if (
-          index > 0 &&
-          entry.points <
-            sorted[index - 1].points
-        ) {
-          currentRank = index + 1;
-        }
+      const ranked = sorted.map(
+        (entry, index) => {
+          if (
+            index > 0 &&
+            (
+              entry.points !==
+                sorted[index - 1].points ||
+              entry.perfectScores !==
+                sorted[index - 1]
+                  .perfectScores ||
+              entry.correctResults !==
+                sorted[index - 1]
+                  .correctResults
+            )
+          ) {
+            currentRank = index + 1;
+          }
 
-        return {
-          ...entry,
-          rank: currentRank
-        };
-      });
+          return {
+            ...entry,
+            rank: currentRank
+          };
+        }
+      );
 
       setEntries(ranked);
     }
@@ -92,46 +156,76 @@ export default function LeaderboardPage() {
   }, []);
 
   return (
-    <main className="p-6 space-y-5">
-      <h1 className="text-4xl">
+    <main className="page-content content-stack">
+      <h1 className="page-title">
         {lang === 'fr'
           ? 'Classement'
           : 'Leaderboard'}
       </h1>
 
-      <div className="space-y-3">
-        {entries.map((entry) => (
-          <div
-            key={entry.userId}
-            className="bg-panel rounded-xl p-4 border border-white/10 flex items-center justify-between"
-          >
-            <div className="flex items-center gap-4">
-              <div className="text-xl font-bold w-8">
+      <div className="dashboard-card">
+      <div className="grid grid-cols-[40px_1fr_60px_50px_50px] gap-2 px-2 pb-3 border-b border-white/10 text-textMuted">
+          <div>#</div>
+
+          <div>
+            {lang === 'fr'
+              ? 'Participant'
+              : 'Participant'}
+          </div>
+
+          <div className="text-right">
+            PTS
+          </div>
+
+          <div className="text-right">
+            PS
+          </div>
+
+          <div className="text-right">
+            CR
+          </div>
+        </div>
+
+        <div className="mt-2 space-y-1">
+          {entries.map((entry) => (
+            <div
+              key={entry.userId}
+              className={`grid grid-cols-[40px_1fr_60px_50px_50px] gap-2 py-3 px-2 rounded-lg ${
+                entry.userId ===
+                currentUserId
+                  ? 'bg-white/10'
+                  : ''
+              }`}
+            >
+              <div>
                 {entry.rank}
               </div>
 
               <div
-               className={
-                 entry.userId === currentUserId
-                   ? 'text-white'
+                className={
+                  entry.userId ===
+                  currentUserId
+                    ? 'text-white'
                     : 'text-textMuted'
                 }
               >
                 {entry.displayName}
               </div>
-            </div>
 
-              <div
-                className={
-                 entry.userId === currentUserId
-                  ? 'text-xl text-white'
-                 : 'text-xl text-textMuted'
-                }
-              >
-               {entry.points}
+              <div className="text-right">
+                {entry.points}
+              </div>
+
+              <div className="text-right">
+                {entry.perfectScores}
+              </div>
+
+              <div className="text-right">
+                {entry.correctResults}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </main>
   );
