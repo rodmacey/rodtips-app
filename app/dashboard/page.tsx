@@ -357,8 +357,8 @@ export default function DashboardPage() {
   <div>
     <div className="dashboard-label text-right">
       {lang === 'fr'
-        ? 'Pronostics'
-        : 'Predictions'}
+        ? 'Pronostics complétés'
+        : 'Completed Predictions'}
     </div>
 
     <div className="dashboard-value text-right">

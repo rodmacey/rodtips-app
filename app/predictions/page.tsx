@@ -221,6 +221,23 @@ export default function PredictionsPage() {
         ))}
       </select>
 
+      <div
+  className={
+    isLocked
+      ? 'text-accent'
+      : 'text-textMuted'
+  }
+>
+  {lang === 'fr'
+    ? isLocked
+      ? '🔒 Pronostics verrouillés'
+      : '🟢 Pronostics ouverts'
+    : isLocked
+      ? '🔒 Predictions Locked'
+      : '🟢 Predictions Open'}
+</div>
+
+
       {Object.entries(grouped).map(([group, groupMatches]) => (
         <div key={group} className="space-y-3">
           {group !== 'knockout' && (
@@ -317,8 +334,8 @@ export default function PredictionsPage() {
                 ? 'Sauvegarde...'
                 : 'Saving...'
               : lang === 'fr'
-              ? 'Sauvegarder les pronostics'
-              : 'Save Predictions'}
+                ? 'Sauvegarder les pronostics'
+                : 'Save Predictions'}
           </button>
 
           {saved && (
