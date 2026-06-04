@@ -67,17 +67,21 @@ button {
   margin-top: 1rem;
 }
 
-/* ---------- Rules ---------- */
+/* ---------- Document Pages ---------- */
 
-.rules-section {
-  margin-bottom: 1.75rem;
+.document-body p {
+  font-size: 14pt;
+  line-height: 1.4;
+  font-weight: 300;
 }
 
-.rules-list {
-  margin-top: 0.5rem;
-  padding-left: 1.25rem;
+.document-body ul,
+.document-body ol {
+  font-size: 14pt;
+  line-height: 1.4;
+  font-weight: 300;
 }
 
-.rules-list li {
+.document-body li {
   margin-bottom: 0.25rem;
 }

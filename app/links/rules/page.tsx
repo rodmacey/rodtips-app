@@ -6,7 +6,8 @@ export default function RulesPage() {
   const { lang } = useLanguage();
 
   return (
-    <main className="p-6 space-y-6">
+    <main className="page-content">
+     <div className="document-body">
       <h1 className="text-4xl">
         {lang === 'fr'
           ? 'Règlement'
@@ -149,6 +150,7 @@ export default function RulesPage() {
           </section>
         </>
       )}
+    </div>
     </main>
   );
 }
