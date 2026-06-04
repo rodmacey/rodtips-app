@@ -316,32 +316,39 @@ export default function DashboardPage() {
       </div>
 
       <div className="dashboard-card">
-        <div className="dashboard-label">
-          {lang === 'fr'
-            ? 'Tour actuel'
-            : 'Current Round'}
-        </div>
+        <div className="dashboard-two-col">
+          <div>
+    <div className="dashboard-label">
+      {lang === 'fr'
+        ? 'Tour actuel'
+        : 'Current Round'}
+    </div>
 
-        <div className="dashboard-value">
-          {currentRound
-            ? lang === 'fr'
-              ? currentRound.name_fr
-              : currentRound.name_en
-            : '—'}
-        </div>
+    <div className="dashboard-value">
+      {currentRound
+        ? lang === 'fr'
+          ? currentRound.name_fr
+          : currentRound.name_en
+        : '—'}
+    </div>
+     </div>
 
-        <div className="dashboard-countdown text-accent">
-          {countdown}
-        </div>
-        <div className="dashboard-label mt-4">
-           {lang === 'fr'
-            ? 'Pronostics'
-           : 'Predictions'}
-        </div>
+  <div>
+    <div className="dashboard-label text-right">
+      {lang === 'fr'
+        ? 'Pronostics'
+        : 'Predictions'}
+    </div>
 
-        <div className="dashboard-value">
-          {predictionCount} / {matchCount}
-        </div>
+    <div className="dashboard-value text-right">
+      {predictionCount} / {matchCount}
+    </div>
+  </div>
+</div>
+
+<div className="dashboard-countdown">
+  {countdown}
+</div>
       </div>
 
       <div className="dashboard-stat-grid">
