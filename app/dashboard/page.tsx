@@ -154,67 +154,88 @@ export default function DashboardPage() {
       } = await supabase
         .from('predictions')
         .select(
-          'user_id, points_awarded'
+          'user_id, points_awarded, is_exact, is_correct_result'
         );
-
+      
       const totals: Record<
         string,
-        number
+        {
+          points: number;
+          ps: number;
+          cr: number;
+        }
       > = {};
-
+      
       allPredictions?.forEach(
         (prediction) => {
-          totals[
-            prediction.user_id
-          ] =
-            (totals[
-              prediction.user_id
-            ] || 0) +
-            (prediction.points_awarded ||
-              0);
+          if (!totals[prediction.user_id]) {
+            totals[prediction.user_id] = {
+              points: 0,
+              ps: 0,
+              cr: 0
+            };
+          }
+      
+          totals[prediction.user_id].points +=
+            prediction.points_awarded || 0;
+      
+          if (prediction.is_exact) {
+            totals[prediction.user_id].ps += 1;
+          }
+      
+          if (prediction.is_correct_result) {
+            totals[prediction.user_id].cr += 1;
+          }
         }
       );
-
-      const leaderboard =
-        Object.entries(totals)
-          .map(
-            ([userId, points]) => ({
-              userId,
-              points
-            })
-          )
-          .sort(
-            (a, b) =>
-              b.points - a.points
-          );
-
+      
+      const leaderboard = Object.entries(totals)
+        .map(([userId, stats]) => ({
+          userId,
+          points: stats.points,
+          ps: stats.ps,
+          cr: stats.cr
+        }))
+        .sort((a, b) => {
+          if (b.points !== a.points) {
+            return b.points - a.points;
+          }
+      
+          if (b.ps !== a.ps) {
+            return b.ps - a.ps;
+          }
+      
+          return b.cr - a.cr;
+        });
+      
       setParticipantCount(
         leaderboard.length
       );
-
+      
       let currentRank = 1;
-
+      
       leaderboard.forEach(
         (entry, index) => {
           if (
             index > 0 &&
-            entry.points <
-              leaderboard[index - 1]
-                .points
+            (
+              entry.points !==
+                leaderboard[index - 1].points ||
+              entry.ps !==
+                leaderboard[index - 1].ps ||
+              entry.cr !==
+                leaderboard[index - 1].cr
+            )
           ) {
-            currentRank =
-              index + 1;
+            currentRank = index + 1;
           }
-
-          if (
-            entry.userId ===
-            user.id
-          ) {
+      
+          if (entry.userId === user.id) {
             setRank(currentRank);
           }
         }
       );
-    }
+        }
 
     loadDashboard();
   }, []);
