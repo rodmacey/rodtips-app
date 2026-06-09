@@ -18,6 +18,7 @@ type Match = {
   home_label_fr: string;
   away_label_en: string;
   away_label_fr: string;
+  kickoff_time_utc: string;
   home_score: number | null;
   away_score: number | null;
   is_complete: boolean;
@@ -222,20 +223,20 @@ export default function PredictionsPage() {
       </select>
 
       <div
-  className={
-    isLocked
-      ? 'text-accent'
-      : 'text-textMuted'
-  }
->
-  {lang === 'fr'
-    ? isLocked
-      ? '🔒 Pronostics verrouillés'
-      : '🟢 Pronostics ouverts'
-    : isLocked
-      ? '🔒 Predictions Locked'
-      : '🟢 Predictions Open'}
-</div>
+        className={
+          isLocked
+            ? 'text-accent'
+            : 'text-textMuted'
+        }
+      >
+        {lang === 'fr'
+          ? isLocked
+            ? '🔒 Pronostics verrouillés'
+            : '🟢 Pronostics ouverts'
+          : isLocked
+            ? '🔒 Predictions Locked'
+            : '🟢 Predictions Open'}
+      </div>
 
 
       {Object.entries(grouped).map(([group, groupMatches]) => (
@@ -257,12 +258,31 @@ export default function PredictionsPage() {
                 key={match.id}
                 className="bg-panel rounded-xl p-4 border border-white/10"
               >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex-1 text-right">
+                <div className="text-sm text-textMuted mb-3 text-center">
+                  {new Date(match.kickoff_time_utc).toLocaleDateString(
+                    lang === 'fr' ? 'fr-FR' : 'en-GB',
+                    {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric'
+                    }
+                  )}
+                  {' • '}
+                  {new Date(match.kickoff_time_utc).toLocaleTimeString(
+                    lang === 'fr' ? 'fr-FR' : 'en-GB',
+                    {
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    }
+                  )}
+                </div>
+
+                <div className="flex items-center justify-center gap-3">
+                  <span className="text-right">
                     {lang === 'fr'
                       ? match.home_label_fr
                       : match.home_label_en}
-                  </div>
+                  </span>
 
                   <input
                     type="number"
@@ -279,7 +299,7 @@ export default function PredictionsPage() {
                     className="w-14 text-center bg-bg rounded p-2"
                   />
 
-                  <span>-</span>
+                  <span>v</span>
 
                   <input
                     type="number"
@@ -296,24 +316,24 @@ export default function PredictionsPage() {
                     className="w-14 text-center bg-bg rounded p-2"
                   />
 
-                  <div className="flex-1">
+                  <span>
                     {lang === 'fr'
                       ? match.away_label_fr
                       : match.away_label_en}
-                  </div>
+                  </span>
                 </div>
 
                 {match.is_complete && (
-                  <div className="mt-3 text-sm text-textMuted">
+                  <div className="mt-3 text-sm text-textMuted text-center">
                     {lang === 'fr'
                       ? 'Résultat'
-                      : 'Result'}:{' '}
-                    {match.home_score}–{match.away_score}
+                      : 'Result'}
+                    : {match.home_score}–{match.away_score}
                     {' • '}
                     {lang === 'fr'
                       ? 'Points'
-                      : 'Points'}:{' '}
-                    {prediction?.points_awarded ?? 0}
+                      : 'Points'}
+                    : {prediction?.points_awarded ?? 0}
                   </div>
                 )}
               </div>
