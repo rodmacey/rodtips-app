@@ -1,0 +1,27 @@
+Supabase project:
+RodTips
+
+Backup date:
+2026-06-11
+
+Tables:
+teams
+tournaments
+rounds
+matches
+profiles
+predictions
+
+Functions:
+calculate_prediction_points
+handle_new_user
+is_prediction_exact
+is_prediction_result_correct
+prevent_locked_prediction_changes
+score_completed_match
+score_prediction_on_save
+
+Triggers:
+trigger_score_completed_match
+trigger_prevent_locked_prediction_changes
+trigger_score_prediction_on_save
