@@ -14,6 +14,8 @@ type Round = {
 
 type Match = {
   id: string;
+  home_team_code: string | null;
+  away_team_code: string | null;
   home_label_en: string;
   home_label_fr: string;
   away_label_en: string;
@@ -278,10 +280,11 @@ export default function PredictionsPage() {
                 </div>
 
                 <div className="flex items-center justify-center gap-3">
-                  <span className="text-right">
-                    {lang === 'fr'
-                      ? match.home_label_fr
-                      : match.home_label_en}
+                  <span className="text-right w-12">
+                    {match.home_team_code ||
+                      (lang === 'fr'
+                        ? match.home_label_fr
+                        : match.home_label_en)}
                   </span>
 
                   <input
@@ -316,10 +319,11 @@ export default function PredictionsPage() {
                     className="w-14 text-center bg-bg rounded p-2"
                   />
 
-                  <span>
-                    {lang === 'fr'
-                      ? match.away_label_fr
-                      : match.away_label_en}
+                  <span className="w-12">
+                    {match.away_team_code ||
+                      (lang === 'fr'
+                        ? match.away_label_fr
+                        : match.away_label_en)}
                   </span>
                 </div>
 
